@@ -5,7 +5,7 @@ namespace DIContainer.Core;
 
 public class DependencyContainer
 {
-    private readonly ISet<Type> _instantiatingTypes = new HashSet<Type>();
+    private readonly ThreadLocal<ISet<Type>> _instantiatingTypes = new(() => new HashSet<Type>());
 
     public DependencyContainer(DependencyConfig dependencyConfig)
     {
@@ -26,9 +26,22 @@ public class DependencyContainer
             return ResolveAll(@interface.GetGenericArguments().First());
         }
 
-        Dependency dependency = DetermineDependency(@interface, name);
-        object instance = ResolveExplicitDependency(dependency);
-        return instance;
+        IEnumerable<Dependency> dependencies = DetermineDependencies(@interface, name);
+        var resolvingFails = new List<Exception>();
+        foreach (Dependency dependency in dependencies)
+        {
+            try
+            {
+                object instance = ResolveExplicitDependency(dependency);
+                return instance;
+            }
+            catch (Exception e)
+            {
+                resolvingFails.Add(e);
+            }
+        }
+
+        throw new AggregateException(resolvingFails);
     }
 
     public IEnumerable<TInterface> ResolveAll<TInterface>()
@@ -59,13 +72,13 @@ public class DependencyContainer
     {
         try
         {
-            if (_instantiatingTypes.Contains(dependency.Type))
+            if (_instantiatingTypes.Value!.Contains(dependency.Type))
             {
                 throw new InvalidOperationException(
                     $"Dependency type {dependency.Type} leads to recursive resolving");
             }
 
-            _instantiatingTypes.Add(dependency.Type);
+            _instantiatingTypes.Value.Add(dependency.Type);
 
             object instance;
             if (dependency.Type.IsAbstract)
@@ -83,12 +96,9 @@ public class DependencyContainer
                     }
                     case Dependency.AccessMode.Singleton:
                     {
-                        lock (this)
-                        {
-                            dependency.Instance ??= DependencyInstantiatingHelper
-                                .Instantiate(dependency.Type, this);
-                            instance = dependency.Instance;
-                        }
+                        dependency.Instance ??= DependencyInstantiatingHelper
+                            .Instantiate(dependency.Type, this);
+                        instance = dependency.Instance;
 
                         break;
                     }
@@ -98,67 +108,32 @@ public class DependencyContainer
                 }
             }
 
-            _instantiatingTypes.Remove(dependency.Type);
+            _instantiatingTypes.Value.Remove(dependency.Type);
 
             return instance;
         }
         catch (Exception)
         {
-            _instantiatingTypes.Clear();
+            _instantiatingTypes.Value!.Clear();
             throw;
         }
     }
 
-    private Dependency GetGenericDependency(Type @interface, string? name = null)
+    private IEnumerable<Dependency> DetermineDependencies(Type @interface, string? name = null)
     {
-        // Type genericType = @interface.GetGenericTypeDefinition();
-        if (DependencyConfig.Dependencies.TryGetValue(@interface, out List<Dependency>? genericDependencies))
-        {
-            Dependency resultGenericDependency;
-            if (name is null)
-            {
-                resultGenericDependency = genericDependencies.First();
-                return resultGenericDependency;
-            }
-
-            try
-            {
-                resultGenericDependency = genericDependencies
-                    .First(genericDependency => name.Equals(genericDependency.Name));
-            }
-            catch (InvalidOperationException e)
-            {
-                throw new ArgumentException($"Dependency for the type {@interface} named " +
-                                            $"{name} is not registered", e);
-            }
-
-            return resultGenericDependency;
-        }
-
-        throw new ArgumentException($"Dependency for the type {@interface} is not registered");
-    }
-
-    private Dependency DetermineDependency(Type @interface, string? name = null)
-    {
-        Dependency resultDependency;
-        if (@interface.IsGenericType)
-        {
-            resultDependency = GetGenericDependency(@interface, name);
-            return resultDependency;
-        }
-
         if (DependencyConfig.Dependencies.TryGetValue(@interface, out List<Dependency>? dependencies))
         {
+            IEnumerable<Dependency> resultDependencies;
             if (name is null)
             {
-                resultDependency = dependencies.First();
-                return resultDependency;
+                resultDependencies = dependencies;
+                return resultDependencies;
             }
 
             try
             {
-                resultDependency = dependencies.First(dependency => name.Equals(dependency.Name));
-                return resultDependency;
+                resultDependencies = dependencies.Where(dependency => name.Equals(dependency.Name));
+                return resultDependencies;
             }
             catch (InvalidOperationException e)
             {
