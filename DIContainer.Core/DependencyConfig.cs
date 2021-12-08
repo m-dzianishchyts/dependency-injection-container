@@ -1,6 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-
-namespace DIContainer.Core
+﻿namespace DIContainer.Core
 {
     public class DependencyConfig
     {
@@ -55,7 +53,7 @@ namespace DIContainer.Core
                 throw new ArgumentException($"{implementation} must be a concrete class");
             }
 
-            if (!@interface.IsAssignableFrom(implementation) && !IsAssignableFromGeneric(implementation, @interface))
+            if (!@interface.IsAssignableFrom(implementation) && !implementation.IsAssignableFromGeneric(@interface))
             {
                 throw new ArgumentException($"{@interface} is not assignable from {implementation}");
             }
@@ -69,38 +67,6 @@ namespace DIContainer.Core
             {
                 Dependencies.Add(@interface, new List<Dependency> { dependency });
             }
-        }
-
-        private static bool IsAssignableFromGeneric(Type @interface, Type implementation)
-        {
-            if (@interface.IsGenericTypeDefinition || !implementation.IsGenericTypeDefinition)
-            {
-                return false;
-            }
-
-            static Type DetermineTypeDefinition(Type type) =>
-                type.IsGenericType ? type.GetGenericTypeDefinition() : type;
-
-            Type interfaceTypeDefinition = DetermineTypeDefinition(@interface);
-            Type implementationTypeDefinition = DetermineTypeDefinition(implementation);
-            IEnumerable<Type> assignableTypes = DetermineAssignableTypes(implementationTypeDefinition);
-            bool isAssignable = assignableTypes
-                .Select(DetermineTypeDefinition)
-                .Contains(interfaceTypeDefinition);
-            return isAssignable;
-        }
-
-        private static IEnumerable<Type> DetermineAssignableTypes(Type type)
-        {
-            var ancestorTypes = new List<Type>();
-            for (Type? ancestorType = type; ancestorType != null; ancestorType = ancestorType.BaseType)
-            {
-                ancestorTypes.Add(ancestorType);
-            }
-
-            IEnumerable<Type> interfaces = type.GetInterfaces().SelectMany(DetermineAssignableTypes).Distinct();
-            IEnumerable<Type> assignableTypes = ancestorTypes.Concat(interfaces);
-            return assignableTypes;
         }
     }
 }
