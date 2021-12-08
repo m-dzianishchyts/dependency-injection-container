@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using DIContainer.Core;
 using DIContainer.Test.TestData;
 using NUnit.Framework;
@@ -117,7 +119,7 @@ public class DependencyContainerTests
     {
         _dependencyConfig!.Register<ITrivial, TrivialA>(nameof(TrivialA));
 
-        Assert.Throws<ArgumentException>(() => _dependencyContainer!.Resolve<ITrivial>(nameof(TrivialB)));
+        Assert.Throws<AggregateException>(() => _dependencyContainer!.Resolve<ITrivial>(nameof(TrivialB)));
     }
 
     [Test]
@@ -127,5 +129,30 @@ public class DependencyContainerTests
         var instance = _dependencyContainer!.Resolve<ITrivial>(nameof(TrivialA));
 
         Assert.AreSame(typeof(TrivialA), instance.GetType());
+    }
+
+    [Test]
+    public static void DependencyContainer_Resolve_MultiThread()
+    {
+        _dependencyConfig!.Register<ITrivial, TrivialA>();
+        _dependencyConfig.Register<ITrivial, FailingWithDefaultConstructor>();
+
+        static void ResolveAction() => _dependencyContainer!.Resolve<ITrivial>();
+        IEnumerable<Action> resolveActions = Enumerable.Repeat((Action) ResolveAction, 100);
+
+        Assert.DoesNotThrow(() => Parallel.Invoke(resolveActions.ToArray()));
+    }
+
+    [Test]
+    public static void DependencyContainer_Resolve_MultiThread_Singleton()
+    {
+        var singletonInstances = new ConcurrentBag<object>();
+        _dependencyConfig!.Register<ITrivial, TrivialA>(Dependency.AccessMode.Singleton);
+
+        void ResolveAction() => singletonInstances.Add(_dependencyContainer!.Resolve<ITrivial>());
+        IEnumerable<Action> resolveActions = Enumerable.Repeat((Action) ResolveAction, 100);
+        Parallel.Invoke(resolveActions.ToArray());
+
+        Assert.AreEqual(1, singletonInstances.Distinct().Count());
     }
 }
