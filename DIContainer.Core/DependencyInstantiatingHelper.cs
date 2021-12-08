@@ -4,7 +4,7 @@ namespace DIContainer.Core;
 
 public class DependencyInstantiatingHelper
 {
-    internal static object Instantiate(Type type, DependenciesConfig dependenciesConfig)
+    internal static object Instantiate(Type type, DependencyContainer dependencyContainer)
     {
         List<ConstructorInfo> constructors = type.GetConstructors()
             .Where(constructor => constructor.GetParameters()
@@ -21,7 +21,7 @@ public class DependencyInstantiatingHelper
             try
             {
                 ParameterInfo[] parameters = constructor.GetParameters();
-                IEnumerable<object> arguments = InstantiateParameters(parameters, dependenciesConfig);
+                IEnumerable<object> arguments = InstantiateParameters(parameters, dependencyContainer);
                 object instance = constructor.Invoke(arguments.ToArray());
                 return instance;
             }
@@ -35,24 +35,10 @@ public class DependencyInstantiatingHelper
     }
 
     private static IEnumerable<object> InstantiateParameters(IEnumerable<ParameterInfo> parameters,
-                                                             DependenciesConfig dependenciesConfig)
+                                                             DependencyContainer dependencyContainer)
     {
-        var parameterInstances = new List<object>();
-        foreach (ParameterInfo parameter in parameters)
-        {
-            if (dependenciesConfig.Dependencies.ContainsKey(parameter.ParameterType))
-            {
-                Dependency dependency = dependenciesConfig.Dependencies[parameter.ParameterType].First();
-                object instance = Instantiate(dependency.GetType(), dependenciesConfig);
-                parameterInstances.Add(instance);
-            }
-            else
-            {
-                throw new ArgumentException("No dependency registered for a parameter " +
-                                            $"(${parameter.ParameterType} {parameter.Name})");
-            }
-        }
-
-        return parameterInstances;
+        IEnumerable<object> instances =
+            parameters.Select(parameter => dependencyContainer.Resolve(parameter.ParameterType));
+        return instances;
     }
 }

@@ -2,11 +2,11 @@
 
 namespace DIContainer.Core
 {
-    public class DependenciesConfig
+    public class DependencyConfig
     {
         internal Dictionary<Type, List<Dependency>> Dependencies { get; }
 
-        public DependenciesConfig()
+        public DependencyConfig()
         {
             Dependencies = new Dictionary<Type, List<Dependency>>();
         }

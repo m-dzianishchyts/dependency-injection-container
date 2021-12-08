@@ -3,32 +3,31 @@ using System.Runtime.CompilerServices;
 
 namespace DIContainer.Core
 {
-    public class DIContainer
+    public class DependencyContainer
     {
-        private readonly DependenciesConfig _dependenciesConfig;
+        internal DependencyConfig DependencyConfig { get; }
 
         private readonly ISet<Type> _instantiatingTypes = new HashSet<Type>();
 
-        public DIContainer(DependenciesConfig dependenciesConfig)
+        public DependencyContainer(DependencyConfig dependencyConfig)
         {
-            _dependenciesConfig = dependenciesConfig;
+            DependencyConfig = dependencyConfig;
         }
 
         public TInterface Resolve<TInterface>(string? name = null)
         {
-            return (TInterface) ResolveExplicit(typeof(TInterface), name);
+            return (TInterface) Resolve(typeof(TInterface), name);
         }
 
-        public object ResolveExplicit(Type @interface, string? name = null)
+        public object Resolve(Type @interface, string? name = null)
         {
-            if (typeof(IEnumerable<>).IsAssignableFrom(@interface))
+            if (typeof(IEnumerable).IsAssignableFrom(@interface))
             {
                 return ResolveAll(@interface.GetGenericArguments().First());
             }
 
-            Dependency dependency = GetDependency(@interface, name);
-
-            object instance = ResolveDependency(dependency);
+            Dependency dependency = DetermineDependency(@interface, name);
+            object instance = ResolveExplicitDependency(dependency);
             return instance;
         }
 
@@ -40,13 +39,13 @@ namespace DIContainer.Core
 
         public IEnumerable<object> ResolveAll(Type @interface)
         {
-            if (_dependenciesConfig.Dependencies.TryGetValue(@interface, out List<Dependency>? dependencies))
+            if (DependencyConfig.Dependencies.TryGetValue(@interface, out List<Dependency>? dependencies))
             {
                 var collection = (IList) Activator.CreateInstance(typeof(List<>).MakeGenericType(@interface))!;
 
                 foreach (Dependency dependency in dependencies)
                 {
-                    collection.Add(ResolveDependency(dependency));
+                    collection.Add(ResolveExplicitDependency(dependency));
                 }
 
                 return (IEnumerable<object>) collection;
@@ -56,47 +55,64 @@ namespace DIContainer.Core
         }
 
         [MethodImpl(MethodImplOptions.Synchronized)]
-        private object ResolveDependency(Dependency dependency)
+        private object ResolveExplicitDependency(Dependency dependency)
         {
-            if (_instantiatingTypes.Contains(dependency.Type))
+            try
             {
-                throw new InvalidOperationException($"Dependency type {dependency.Type} leads to recursive resolving");
-            }
-
-            _instantiatingTypes.Add(dependency.Type);
-
-            object instance;
-            switch (dependency.InstanceAccessMode)
-            {
-                case Dependency.AccessMode.Transient:
+                if (_instantiatingTypes.Contains(dependency.Type))
                 {
-                    instance = DependencyInstantiatingHelper.Instantiate(dependency.Type, _dependenciesConfig);
-                    break;
+                    throw new InvalidOperationException(
+                        $"Dependency type {dependency.Type} leads to recursive resolving");
                 }
-                case Dependency.AccessMode.Singleton:
+
+                _instantiatingTypes.Add(dependency.Type);
+
+                object instance;
+                if (dependency.Type.IsAbstract)
                 {
-                    lock (this)
+                    instance = Resolve(dependency.Type);
+                }
+                else
+                {
+                    switch (dependency.InstanceAccessMode)
                     {
-                        dependency.Instance ??=
-                            DependencyInstantiatingHelper.Instantiate(dependency.Type, _dependenciesConfig);
-                        instance = dependency.Instance;
+                        case Dependency.AccessMode.Transient:
+                        {
+                            instance = DependencyInstantiatingHelper.Instantiate(dependency.Type, this);
+                            break;
+                        }
+                        case Dependency.AccessMode.Singleton:
+                        {
+                            lock (this)
+                            {
+                                dependency.Instance ??= DependencyInstantiatingHelper
+                                    .Instantiate(dependency.Type, this);
+                                instance = dependency.Instance;
+                            }
+
+                            break;
+                        }
+                        default:
+                            throw new ArgumentOutOfRangeException(nameof(dependency),
+                                                                  nameof(dependency.InstanceAccessMode));
                     }
-
-                    break;
                 }
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(dependency), nameof(dependency.InstanceAccessMode));
+
+                _instantiatingTypes.Remove(dependency.Type);
+
+                return instance;
             }
-
-            _instantiatingTypes.Remove(dependency.Type);
-
-            return instance;
+            catch (Exception)
+            {
+                _instantiatingTypes.Clear();
+                throw;
+            }
         }
 
         private Dependency GetGenericDependency(Type @interface, string? name = null)
         {
-            Type genericType = @interface.GetGenericTypeDefinition();
-            if (_dependenciesConfig.Dependencies.TryGetValue(genericType, out List<Dependency>? genericDependencies))
+            // Type genericType = @interface.GetGenericTypeDefinition();
+            if (DependencyConfig.Dependencies.TryGetValue(@interface, out List<Dependency>? genericDependencies))
             {
                 Dependency resultGenericDependency;
                 if (name is null)
@@ -122,7 +138,7 @@ namespace DIContainer.Core
             throw new ArgumentException($"Dependency for the type {@interface} is not registered");
         }
 
-        private Dependency GetDependency(Type @interface, string? name = null)
+        private Dependency DetermineDependency(Type @interface, string? name = null)
         {
             Dependency resultDependency;
             if (@interface.IsGenericType)
@@ -131,7 +147,7 @@ namespace DIContainer.Core
                 return resultDependency;
             }
 
-            if (_dependenciesConfig.Dependencies.TryGetValue(@interface, out List<Dependency>? dependencies))
+            if (DependencyConfig.Dependencies.TryGetValue(@interface, out List<Dependency>? dependencies))
             {
                 if (name is null)
                 {
