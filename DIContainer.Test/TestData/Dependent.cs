@@ -1,6 +1,6 @@
 ﻿namespace DIContainer.Test.TestData;
 
-public class Dependent
+internal class Dependent
 {
     public ITrivial Trivial;
 

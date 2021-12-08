@@ -1,6 +1,6 @@
 ﻿namespace DIContainer.Test.TestData;
 
-public class CyclicallyDependentA : ITrivial
+internal class CyclicallyDependentA : ITrivial
 {
     public CyclicallyDependentA(CyclicallyDependentB cyclicallyDependentB)
     {

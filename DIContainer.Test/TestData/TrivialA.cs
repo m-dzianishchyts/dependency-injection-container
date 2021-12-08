@@ -1,5 +1,5 @@
 ﻿namespace DIContainer.Test.TestData;
 
-public class TrivialA : ITrivial
+internal class TrivialA : ITrivial
 {
 }
