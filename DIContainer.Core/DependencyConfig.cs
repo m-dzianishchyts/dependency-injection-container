@@ -1,72 +1,71 @@
-﻿namespace DIContainer.Core
+﻿namespace DIContainer.Core;
+
+public class DependencyConfig
 {
-    public class DependencyConfig
+    public DependencyConfig()
     {
-        internal Dictionary<Type, List<Dependency>> Dependencies { get; }
+        Dependencies = new Dictionary<Type, List<Dependency>>();
+    }
 
-        public DependencyConfig()
+    internal Dictionary<Type, List<Dependency>> Dependencies { get; }
+
+    public void Register<TInterface, TImplementation>(string name,
+                                                      Dependency.AccessMode accessMode =
+                                                          Dependency.AccessMode.Transient)
+        where TInterface : class
+        where TImplementation : class, TInterface
+    {
+        RegisterExplicit(typeof(TInterface), typeof(TImplementation), name, accessMode);
+    }
+
+    public void Register<TInterface, TImplementation>(Dependency.AccessMode accessMode =
+                                                          Dependency.AccessMode.Transient)
+        where TInterface : class
+        where TImplementation : class, TInterface
+    {
+        RegisterExplicit(typeof(TInterface), typeof(TImplementation), null, accessMode);
+    }
+
+    public void Register(Type @interface, Type implementation,
+                         string name, Dependency.AccessMode accessMode =
+                             Dependency.AccessMode.Transient)
+    {
+        RegisterExplicit(@interface, implementation, name, accessMode);
+    }
+
+    public void Register(Type @interface, Type implementation,
+                         Dependency.AccessMode accessMode =
+                             Dependency.AccessMode.Transient)
+    {
+        RegisterExplicit(@interface, implementation, null, accessMode);
+    }
+
+    private void RegisterExplicit(Type @interface, Type implementation, string? name,
+                                  Dependency.AccessMode accessMode)
+    {
+        if (implementation.IsValueType)
         {
-            Dependencies = new Dictionary<Type, List<Dependency>>();
+            throw new ArgumentException($"{implementation} cannot be a value type");
         }
 
-        public void Register<TInterface, TImplementation>(string name,
-                                                          Dependency.AccessMode accessMode =
-                                                              Dependency.AccessMode.Transient)
-            where TInterface : class
-            where TImplementation : class, TInterface
+        if (implementation.IsAbstract || implementation.IsInterface)
         {
-            RegisterExplicit(typeof(TInterface), typeof(TImplementation), name, accessMode);
+            throw new ArgumentException($"{implementation} must be a concrete class");
         }
 
-        public void Register<TInterface, TImplementation>(Dependency.AccessMode accessMode =
-                                                              Dependency.AccessMode.Transient)
-            where TInterface : class
-            where TImplementation : class, TInterface
+        if (!@interface.IsAssignableFrom(implementation) && !implementation.IsAssignableFromGeneric(@interface))
         {
-            RegisterExplicit(typeof(TInterface), typeof(TImplementation), null, accessMode);
+            throw new ArgumentException($"{@interface} is not assignable from {implementation}");
         }
 
-        public void Register(Type @interface, Type implementation,
-                             string name, Dependency.AccessMode accessMode =
-                                 Dependency.AccessMode.Transient)
+        var dependency = new Dependency(implementation, name, accessMode);
+        if (Dependencies.ContainsKey(@interface))
         {
-            RegisterExplicit(@interface, implementation, name, accessMode);
+            Dependencies[@interface].Add(dependency);
         }
-
-        public void Register(Type @interface, Type implementation,
-                             Dependency.AccessMode accessMode =
-                                 Dependency.AccessMode.Transient)
+        else
         {
-            RegisterExplicit(@interface, implementation, null, accessMode);
-        }
-
-        private void RegisterExplicit(Type @interface, Type implementation, string? name,
-                                      Dependency.AccessMode accessMode)
-        {
-            if (implementation.IsValueType)
-            {
-                throw new ArgumentException($"{implementation} cannot be a value type");
-            }
-
-            if (implementation.IsAbstract || implementation.IsInterface)
-            {
-                throw new ArgumentException($"{implementation} must be a concrete class");
-            }
-
-            if (!@interface.IsAssignableFrom(implementation) && !implementation.IsAssignableFromGeneric(@interface))
-            {
-                throw new ArgumentException($"{@interface} is not assignable from {implementation}");
-            }
-
-            var dependency = new Dependency(implementation, name, accessMode);
-            if (Dependencies.ContainsKey(@interface))
-            {
-                Dependencies[@interface].Add(dependency);
-            }
-            else
-            {
-                Dependencies.Add(@interface, new List<Dependency> { dependency });
-            }
+            Dependencies.Add(@interface, new List<Dependency> { dependency });
         }
     }
 }

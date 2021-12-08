@@ -1,9 +1,8 @@
-﻿namespace DIContainer.Test.TestData
+﻿namespace DIContainer.Test.TestData;
+
+public class CyclicallyDependentA : ITrivial
 {
-    public class CyclicallyDependentA : ITrivial
+    public CyclicallyDependentA(CyclicallyDependentB cyclicallyDependentB)
     {
-        public CyclicallyDependentA(CyclicallyDependentB cyclicallyDependentB)
-        {
-        }
     }
 }

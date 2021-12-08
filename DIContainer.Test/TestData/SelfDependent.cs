@@ -1,9 +1,8 @@
-﻿namespace DIContainer.Test.TestData
+﻿namespace DIContainer.Test.TestData;
+
+public class SelfDependent : ITrivial
 {
-    public class SelfDependent : ITrivial
+    public SelfDependent(SelfDependent selfDependent)
     {
-        public SelfDependent(SelfDependent selfDependent)
-        {
-        }
     }
 }

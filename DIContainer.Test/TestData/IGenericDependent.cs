@@ -1,7 +1,6 @@
-﻿namespace DIContainer.Test.TestData
+﻿namespace DIContainer.Test.TestData;
+
+public interface IGenericDependent<T> where T : ITrivial
 {
-    public interface IGenericDependent<T> where T: ITrivial
-    {
-        T Trivial { get; set; }
-    }
+    T Trivial { get; set; }
 }

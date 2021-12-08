@@ -1,6 +1,5 @@
-﻿namespace DIContainer.Test.TestData
+﻿namespace DIContainer.Test.TestData;
+
+public interface ITrivial
 {
-    public interface ITrivial
-    {
-    }
 }

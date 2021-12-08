@@ -1,26 +1,25 @@
-﻿namespace DIContainer.Core
+﻿namespace DIContainer.Core;
+
+public class Dependency
 {
-    public class Dependency
+    public enum AccessMode
     {
-        internal Type Type { get; }
-
-        internal AccessMode InstanceAccessMode { get; }
-
-        internal string? Name { get; }
-
-        internal object? Instance { get; set; }
-
-        internal Dependency(Type type, string? name, AccessMode instanceAccessMode)
-        {
-            Type = type;
-            InstanceAccessMode = instanceAccessMode;
-            Name = name;
-        }
-
-        public enum AccessMode
-        {
-            Transient,
-            Singleton
-        }
+        Transient,
+        Singleton
     }
+
+    internal Dependency(Type type, string? name, AccessMode instanceAccessMode)
+    {
+        Type = type;
+        InstanceAccessMode = instanceAccessMode;
+        Name = name;
+    }
+
+    internal Type Type { get; }
+
+    internal AccessMode InstanceAccessMode { get; }
+
+    internal string? Name { get; }
+
+    internal object? Instance { get; set; }
 }
